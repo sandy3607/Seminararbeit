@@ -1,1 +1,169 @@
+!pip install geos
+!pip install wheel
+!pip install pipwin
+!pipwin install numpy
+!pipwin install pandas
+!pipwin install shapely
+!pipwin install gdal
+!pipwin install fiona
+!pipwin install pyproj
+!pipwin install six
+!pipwin install rtree
+!pipwin install geopandas
+!pip install osmnx
+!pip install shapely
+
+
+from pyproj import Transformer
+import pyproj
+import numpy as np
+import pandas  as pd
+from shapely.geometry import Point as point
+import geopandas as gpd
+import folium
+import networkx as nx
+import osmnx as ox, geopandas as gpd, matplotlib.pyplot as plt
+from shapely.geometry import Point, Polygon, LineString
+from descartes import PolygonPatch
+import requests
+import matplotlib.cm as cm
+import matplotlib.colors as colors
+ox.config(use_cache=True, log_console=True)
+
+G=nx.Graph()
+
+index = {
+    1:'연신내', 2:'디미시', 3:'신천',    4:'공덕',    5:'용산', 6:'여의도',    7:'목동',    8:'대림',
+    9:'봉천',    10:'사당',    11:'강남',    12:'수서',    13:'잠실',    14:'천호',    15:'성수',    16:'왕십리',
+    17:'망우',    18:'청량리',    19:'창동',    20:'미아사거리',    21:'동대문',    22:'을지로/종로'
+}
+edges = [(1, 2), (1, 22), (2, 3), (2, 4), (3, 4), (3, 22), (3, 8), (4, 5), (4, 6), (5, 6), (5, 10), (6, 7), (7, 8), (8, 9), (9, 10), (10, 11), (10, 17), (11, 12), (11, 13), (11, 22), (12, 13), (12, 16), (13, 14), (14, 15), (14, 16), (14, 17), (15, 16), (15, 17), (16, 17), (16, 22), (16, 18), (17, 18), (18, 19), (18, 21), (19, 20), (20, 21), (21, 22)]
+
+nodes=G.nodes
+
+n_list=[]
+
+for i in range (1,22):
+    n_list.append(i)
+    
+e_list=[]
+for j in range(1,22):
+    e_list.append([j,j+1])
+    
+G.add_nodes_from(n_list)
+G.add_edges_from(e_list)
+G.add_edges_from(edges)
+
+nx.draw(G,with_labels = True)
+
+graph = {
+    index[1]: {index[2]: 5.3, index[22]: 11.3},
+    index[2]: {index[1]:5.3, index[3]:4.7},
+    index[3]: {index[4]: 4.1, index[8]: 9.4, index[22]:4.3},
+    index[4]: {index[3]:4.1, index[5]: 2.5, index[8]: 4.6},
+    index[5]: {index[4]:2.5, index[6]: 4.6, index[10]:7.5, index[16]:10.3, index[22]:5.8},
+    index[6]: {index[5]: 4.6, index[7]: 5.8},
+    index[7] : {index[6]:5.8, index[8]:6.7},
+    index[8] : {index[3]:9.4, index[4]:4.6, index[7]:6.7, index[9]:5.1},
+    index[9] : {index[8]:5.1, index[10]:3.7},
+    index[10] : {index[5]:7.5, index[9]:3.7, index[11]:5.2,index[17]:17.5},
+    index[11] : {index[10]:5.2, index[12]:8.7,index[13]:6.7, index[22]:11.2},
+    index[12] : {index[11]:8.7, index[13]:4.3,index[16]:15.9},
+    index[13] : {index[11]:6.7,  index[12]:4.3, index[14]:3.3,index[15]:6.5},
+    index[14] : {index[13]:3.3, index[15]:9.7,index[16]:10.1},
+    index[15] : {index[13]:6.5, index[14]:9.7, index[16]:2.9},
+    index[16] : {index[5]:10.3, index[12]:15.9, index[14]:10.1, index[15]:2.9, index[17]:7.1,index[18]:2.4,index[22]:4.2},
+    index[17] : {index[10]:17.5, index[16]:7.1, index[18]:4.7},
+    index[18] : {index[16]:2.4, index[17]:4.7, index[19]:9,index[21]:3.2},
+    index[19] : {index[18]:9, index[20]:4.2},
+    index[20] : {index[19]:4.2, index[21]:4.2},
+    index[21] : {index[18]:3.2, index[20]:4.2, index[22]:1.7},
+    index[22] : {index[1]:11.3, index[3]:4.3, index[5]:5.8, index[11]:11.2,index[16]:4.2, index[21]:1.7}
+}
+
+for i in range (1,len(graph)+1):
+    for f in range(1, len(graph)+1):
+        dist= dijkstra(graph, index[i])[index[f]]
+        print('from',index[i],'to', index[f], dist)      
+        dist_l.append(dist)
+        
+G4 = ox.graph_from_place('Seoul, Südkorea',
+                        retain_all=True, truncate_by_edge=True, simplify=False,
+                        custom_filter='["railway"]')
+                        
+fig, ax = ox.plot_graph(G4)
+G_proj = ox.project_graph(G4)
+nodes_proj = ox.graph_to_gdfs(G_proj, edges=False)
+graph_area_m = nodes_proj.unary_union.convex_hull.area
+print(graph_area_m)
+
+stats = ox.basic_stats(G_proj, 
+                       area=graph_area_m, 
+                       clean_intersects=True, 
+                       circuity_dist='euclidean')
+
+more_stats = ox.extended_stats(G4, ecc=True, bc=True, cc=True) 
+for key in sorted(more_stats.keys()):
+    print(key)
+more_stats['degree_centrality_avg']
+
+edge_centrality = nx.closeness_centrality(nx.line_graph(G4))
+nx.set_edge_attributes(G4, edge_centrality, 'edge_centrality')
+
+ec = ox.plot.get_edge_colors_by_attr(G4, 'edge_centrality', cmap='inferno')
+fig, ax = ox.plot_graph(G4, edge_color=ec, edge_linewidth=2, node_size=0)
+
+coord2 = pd.read_excel('station_coordfile.xlsx') 
+coord2_name = coord2['name']
+coord2_x = coord2['lat']
+coord2_y = coord2['lng']
+coord2_p = coord2['ppl']
+lat = coord2['lat'].mean()
+
+m = folium.Map([lat, long], zoom_start = 11)
+
+
+for i in range(0, len(coord2)):
+    coords = [x,y]
+    x = coord2_x[i]
+    y = coord2_y[i]
+    p = int(coord2_p[i])
+    folium.Circle(
+        location = coords,
+        radius = p*6,
+        color = '#000000',
+        fill = 'crimson',
+    ).add_to(m)
+m
+
+coord = pd.read_excel('t.entfernung.xlsx') 
+coord_name = coord['name']
+coord_x = coord['lat']
+coord_y = coord['lng']
+n_entf = coord['n.entfernung']
+
+def haversine_distance(lat1, lon1, lat2, lon2):
+   r = 6371
+   phi1 = np.radians(lat1)
+   phi2 = np.radians(lat2)
+   delta_phi = np.radians(lat2 - lat1)
+   delta_lambda = np.radians(lon2 -lon1)
+   a = np.sin(delta_phi / 2)**2 + np.cos(phi1)*np.cos(phi2)*np.sin(delta_lambda / 2)**2
+   res = r * (2 * np.arctan2(np.sqrt(a), np.sqrt(1 -a)))
+   return np.round(res, 2)
+   
+cities = pd.DataFrame(data={
+    'City': [ '연신내','디미시','신촌','공덕','용산','여의도','목동','대림','봉천','사당','강남','수서','잠실','천호','성수','왕십리','망우','청량리','창동','미아','동대문','을지로'],
+    'Lat' : [37.619001,37.576646,37.576646,37.544018,37.52952222,37.521624,37.526065,37.49297,37.482475,37.47652778,37.497175,37.487371,37.51395,37.538397,37.544581,37.561533,37.59928611,37.580178,37.653166,37.62667,37.57142,37.566295],
+    'Lon' : [126.921008,126.900984,126.900984,126.951592,126.9645417,126.924191,126.864931,126.895801,126.9416694,126.9816111,127.027926,127.10188,127.102234,127.123572,127.055961,127.037732,127.0923444,127.046835,127.047731,127.025983,127.009745,126.99191]})   
+
+for i in range (0, 22):
+    distances_km = []
+    for f in range (0,22):
+        start_lat, start_lon = coord_x[i], coord_y[i]
+    for row in cities.itertuples(index=False):
+        distances_km.append(
+            haversine_distance(start_lat, start_lon, row.Lat, row.Lon))
+    print('step',i+1,distances_km)
+
 
